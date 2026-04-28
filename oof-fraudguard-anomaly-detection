@@ -1,0 +1,647 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/kiran9846/oof-fraudguard-anomaly-detection/blob/main/oof-fraudguard-anomaly-detection\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "## Inspect Data\n",
+        "\n"
+      ],
+      "metadata": {
+        "id": "0blQQxt-NEa4"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [],
+      "metadata": {
+        "id": "zfUwOC3Wizv4"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import pandas as pd\n",
+        "df = pd.read_csv('/content/sample_data/data.csv')\n",
+        "df.head()"
+      ],
+      "metadata": {
+        "id": "NeGumZmcL64j"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from google.colab import drive\n",
+        "drive.mount('/content/drive')"
+      ],
+      "metadata": {
+        "id": "1HCYoRyMjvnX"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# Summary Statistics"
+      ],
+      "metadata": {
+        "id": "pHp3ZWFeNMGx"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Quantitative\n",
+        "quantitative = df[[\"TransactionAmount\", \"CustomerAge\", \"TransactionDuration\",\n",
+        "    \"LoginAttempts\", \"AccountBalance\"]]\n",
+        "\n",
+        "quantitative.describe()"
+      ],
+      "metadata": {
+        "id": "mX527JrZNQ1Z"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Categorical\n",
+        "categorical = df[df.columns.difference(quantitative.columns)]\n",
+        "for col in categorical:\n",
+        "    print(f\"=== {col} ===\")\n",
+        "    print(df[col].value_counts())\n",
+        "    print()"
+      ],
+      "metadata": {
+        "id": "NE4S66UcNiXR"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "**Pipeline: **\n",
+        "1. Correlation Matrix\n",
+        "         ↓\n",
+        "2. Feature Engineering\n",
+        "   (create new meaningful features)\n",
+        "         ↓\n",
+        "3. Scale ALL features\n",
+        "         ↓\n",
+        "4. Anomaly Detection\n",
+        "   (Isolation Forest or K-Means)\n",
+        "         ↓\n",
+        "5. Correlation Analysis\n",
+        "         ↓\n",
+        "6. Regression Analysis\n",
+        "         ↓\n",
+        "7. Predictive Modeling\n",
+        "         ↓\n",
+        "8. Evaluation"
+      ],
+      "metadata": {
+        "id": "Cu5eVZjnsBPy"
+      }
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Priorities:\n",
+        "Correlation\n",
+        "Predictive Modeling"
+      ],
+      "metadata": {
+        "id": "JLfc1feZNY9K"
+      }
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Correlation matrix(Done)"
+      ],
+      "metadata": {
+        "id": "hKJnicdNMkpU"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from sklearn.cluster import KMeans\n",
+        "import numpy as np\n",
+        "import matplotlib.pyplot as plt\n",
+        "import seaborn as sns\n",
+        "from sklearn.preprocessing import StandardScaler"
+      ],
+      "metadata": {
+        "id": "9IOoIvyLXpqY"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "numerical_cols = df.select_dtypes(include='number').columns.tolist()\n",
+        "print(numerical_cols)"
+      ],
+      "metadata": {
+        "id": "z4phkhZ9ZgRt"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "corr = df[numerical_cols].corr()\n",
+        "plt.figure(figsize=(8, 6))\n",
+        "sns.heatmap(corr, annot=True, fmt=\".2f\")\n",
+        "plt.title('Correlation Matrix')\n",
+        "plt.show()"
+      ],
+      "metadata": {
+        "id": "Nx38BYesZmx0"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Feature Engineering"
+      ],
+      "metadata": {
+        "id": "8e4YObJpc7KI"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "df['TransactionAmount'] = np.log1p(df['TransactionAmount'])\n",
+        "df['Account_Transaction_Count'] = df.groupby('AccountID')['AccountID'].transform('count')\n",
+        "\n",
+        "df['Account_Avg_Amount'] = df.groupby('AccountID')['TransactionAmount'].transform('mean')\n",
+        "df['Amount_to_Balance'] = df['TransactionAmount'] / (df['AccountBalance'] + 1)\n",
+        "df['TransactionDate'] = pd.to_datetime(df['TransactionDate'])\n",
+        "df['PreviousTransactionDate'] = pd.to_datetime(df['PreviousTransactionDate'])\n",
+        "df['Hour'] = df['TransactionDate'].dt.hour\n",
+        "df['Weekday'] = df['TransactionDate'].dt.weekday\n",
+        "df['IsWeekend'] = df['Weekday'].isin([5,6]).astype(int)\n",
+        "df['Accounts_per_Device'] = df.groupby('DeviceID')['AccountID'].transform('nunique')\n",
+        "df.head(5)"
+      ],
+      "metadata": {
+        "id": "O897lSBLhN8N"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "plt.figure(figsize=(6, 4))\n",
+        "\n",
+        "palette = sns.color_palette(\"tab20\")\n",
+        "\n",
+        "ax = sns.countplot(data=df, x='Accounts_per_Device', palette=palette)\n",
+        "\n",
+        "plt.title('Accounts_per_Device Distribution')\n",
+        "plt.xlabel('Number_Accounts_per_Device')\n",
+        "plt.ylabel('Number_of_Devices')\n",
+        "\n",
+        "plt.axvline(x=4.5, color='red', linestyle='--', label='Risk Threshold')\n",
+        "plt.legend()\n",
+        "plt.tight_layout()\n",
+        "plt.show()"
+      ],
+      "metadata": {
+        "id": "AHPQNIg5hl0h"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "From this graph we can find out the number of accounts per devices."
+      ],
+      "metadata": {
+        "id": "UtOG0GY7iTt0"
+      }
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "**Select Features and Scaling**"
+      ],
+      "metadata": {
+        "id": "0i8FVWFKkqFj"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "features = df.select_dtypes(include='number').columns.tolist()\n",
+        "print(features)"
+      ],
+      "metadata": {
+        "id": "r3MjttKfk2T4"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "X = df[features]\n",
+        "scaler = StandardScaler()\n",
+        "X = X.fillna(X.mean())\n",
+        "X_scaled = scaler.fit_transform(X)"
+      ],
+      "metadata": {
+        "id": "jOVmHX_9lGSr"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "**Isolation Forest on scaled data**"
+      ],
+      "metadata": {
+        "id": "BKGHcJQqlVf3"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from sklearn.ensemble import IsolationForest"
+      ],
+      "metadata": {
+        "id": "PnUfbZ5olgvA"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# iso = IsolationForest(contamination=0.05, random_state=42)\n",
+        "# iso.fit(X_scaled)\n",
+        "\n",
+        "# preds = iso.predict(X_scaled)\n",
+        "# scores = iso.decision_function(X_scaled)\n",
+        "\n",
+        "# print(\"Pred counts:\", np.unique(preds, return_counts=True))\n",
+        "# print(\"Score min/max:\", scores.min(), scores.max())"
+      ],
+      "metadata": {
+        "id": "oK2aYtFgoLsG"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "0 means normal and 1 means potential fraud account\n"
+      ],
+      "metadata": {
+        "id": "qq9HtbJrqg1V"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "iso = IsolationForest(contamination=0.05, random_state=42)\n",
+        "df['IsFraud'] = (iso.fit_predict(X_scaled) == -1).astype(int)\n",
+        "df['IsFraud'].value_counts()"
+      ],
+      "metadata": {
+        "id": "o2A1G4oVlrym"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "counts = df['IsFraud'].value_counts()\n",
+        "labels = ['Normal (0)', 'Suspicious (1)']\n",
+        "colors = ['#2ecc71', '#e74c3c']\n",
+        "\n",
+        "plt.figure(figsize=(7, 5))\n",
+        "bars = plt.bar(labels, counts.values, color=colors, width=0.4)\n",
+        "\n",
+        "# Value on top of each bar\n",
+        "for bar in bars:\n",
+        "    plt.text(bar.get_x() + bar.get_width()/2,\n",
+        "             bar.get_height() + 10,\n",
+        "             str(bar.get_height()),\n",
+        "             ha='center', fontsize=12, fontweight='bold')\n",
+        "\n",
+        "plt.title('Normal vs Suspicious Transactions\\n(Isolation Forest Results)',\n",
+        "          fontsize=13, fontweight='bold')\n",
+        "plt.xlabel('Transaction Type', fontsize=12)\n",
+        "plt.ylabel('Number of Transactions', fontsize=12)\n",
+        "plt.tight_layout()\n",
+        "plt.show()"
+      ],
+      "metadata": {
+        "id": "ZUESPgba31DJ"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "**Correlation Analysis**"
+      ],
+      "metadata": {
+        "id": "wItoVDZMtjNN"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "correlation_cols = [\n",
+        "    'TransactionAmount', 'CustomerAge', 'TransactionDuration', 'LoginAttempts',\n",
+        "    'AccountBalance', 'Account_Transaction_Count', 'Account_Avg_Amount',\n",
+        "    'Amount_to_Balance', 'Hour', 'Weekday', 'IsWeekend', 'Accounts_per_Device',\n",
+        "    'IsFraud'\n",
+        "]\n",
+        "\n",
+        "fraud_analysis_corr = df[correlation_cols].corr()\n",
+        "\n",
+        "fraud_drivers = fraud_analysis_corr['IsFraud'].sort_values(ascending=False)\n",
+        "\n",
+        "print(\"Numerical Correlation with Fraud Labels:\")\n",
+        "print(fraud_drivers)\n",
+        "\n",
+        "plt.figure(figsize=(6, 8))\n",
+        "sns.heatmap(fraud_analysis_corr[['IsFraud']].sort_values(by='IsFraud', ascending=False),\n",
+        "            annot=True, cmap='Reds', fmt=\".2f\")\n",
+        "plt.title('Feature Correlation with Detected Fraud')\n",
+        "plt.show()"
+      ],
+      "metadata": {
+        "id": "rV8EhaR1tp9Z"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Logistic Regression"
+      ],
+      "metadata": {
+        "id": "MOYL132g4c-H"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from sklearn.linear_model import LogisticRegression\n",
+        "from sklearn.model_selection import cross_val_score, StratifiedKFold\n",
+        "from sklearn.model_selection import cross_val_predict\n",
+        "from sklearn.metrics import classification_report, confusion_matrix\n",
+        "from sklearn.model_selection import train_test_split\n",
+        "from sklearn.pipeline import Pipeline\n",
+        "\n",
+        "X = df[features]\n",
+        "X = X.fillna(X.mean())\n",
+        "y = df['IsFraud']\n",
+        "\n",
+        "\n",
+        "\n",
+        "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)\n",
+        "\n",
+        "pipeline = Pipeline([\n",
+        "    ('scaler', StandardScaler()),\n",
+        "    ('model', LogisticRegression(max_iter=1000, random_state=42))\n",
+        "])\n",
+        "\n",
+        "cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)\n",
+        "\n",
+        "y_probs_cv = cross_val_predict(pipeline, X_train, y_train, cv=cv, method='predict_proba')[:, 1]\n",
+        "\n",
+        "thresholds = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8]\n",
+        "precisions = []\n",
+        "recalls    = []\n",
+        "f1s        = []\n",
+        "\n",
+        "print(\"=== Threshold Comparison (CV) ===\\n\")\n",
+        "for threshold in thresholds:\n",
+        "    y_pred = (y_probs_cv >= threshold).astype(int)\n",
+        "    report = classification_report(y_train, y_pred,\n",
+        "                                   target_names=['Normal', 'Fraud'],\n",
+        "                                   output_dict=True)\n",
+        "    precisions.append(report['Fraud']['precision'])\n",
+        "    recalls.append(report['Fraud']['recall'])\n",
+        "    f1s.append(report['Fraud']['f1-score'])\n",
+        "\n",
+        "    print(f\"Threshold {threshold} → \"\n",
+        "          f\"Precision: {report['Fraud']['precision']:.2f} | \"\n",
+        "          f\"Recall: {report['Fraud']['recall']:.2f} | \"\n",
+        "          f\"F1: {report['Fraud']['f1-score']:.2f}\")\n",
+        "\n",
+        "best_idx       = int(np.argmax(f1s))\n",
+        "best_threshold = thresholds[best_idx]"
+      ],
+      "metadata": {
+        "id": "8PaJtydr4cg-"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "\n",
+        "plt.figure(figsize=(9, 5))\n",
+        "\n",
+        "plt.plot(thresholds, precisions, 'o-', color='#3b82f6', lw=2, ms=8, label='Precision')\n",
+        "plt.plot(thresholds, recalls,    's-', color='#f97316', lw=2, ms=8, label='Recall')\n",
+        "plt.plot(thresholds, f1s,        'D--',color='#8b5cf6', lw=2, ms=8, label='F1 Score')\n",
+        "\n",
+        "# Value labels on every point\n",
+        "for i, t in enumerate(thresholds):\n",
+        "    plt.annotate(f'{precisions[i]:.2f}', (t, precisions[i]),\n",
+        "                 textcoords='offset points', xytext=(0, 10),\n",
+        "                 ha='center', fontsize=9, color='#3b82f6')\n",
+        "    plt.annotate(f'{recalls[i]:.2f}',    (t, recalls[i]),\n",
+        "                 textcoords='offset points', xytext=(0, -16),\n",
+        "                 ha='center', fontsize=9, color='#f97316')\n",
+        "    plt.annotate(f'{f1s[i]:.2f}',        (t, f1s[i]),\n",
+        "                 textcoords='offset points', xytext=(6, 4),\n",
+        "                 ha='left',   fontsize=9, color='#8b5cf6')\n",
+        "\n",
+        "# Best threshold line\n",
+        "plt.axvline(x=best_threshold, color='#22c55e',\n",
+        "            linestyle='--', lw=1.8, label=f'Best threshold = {best_threshold}')\n",
+        "\n",
+        "plt.title('Precision, Recall & F1 at Each Threshold\\n(Fraud class — Cross Validation)',\n",
+        "          fontsize=13, fontweight='bold')\n",
+        "plt.xlabel('Threshold', fontsize=11)\n",
+        "plt.ylabel('Score',     fontsize=11)\n",
+        "plt.xticks(thresholds)\n",
+        "plt.ylim(0.3, 1.05)\n",
+        "plt.legend(fontsize=10)\n",
+        "plt.grid(axis='y', linestyle='--', alpha=0.5)\n",
+        "plt.tight_layout()\n",
+        "plt.savefig('threshold_chart.png', dpi=150, bbox_inches='tight')\n",
+        "plt.show()"
+      ],
+      "metadata": {
+        "id": "5I0e5U0ar-zE"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "we would rather choose false alarm then missing fraud thats why we use the threshold 0.3"
+      ],
+      "metadata": {
+        "id": "b39LxGlnISPO"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#Classification report with final threshold\n",
+        "best_threshold = 0.3\n",
+        "\n",
+        "pipeline.fit(X_train, y_train)\n",
+        "\n",
+        "y_prob_test = pipeline.predict_proba(X_test)[:, 1]\n",
+        "y_pred_test = (y_prob_test >= best_threshold).astype(int)\n",
+        "\n",
+        "report_dict = classification_report(y_test, y_pred_test,\n",
+        "                                   target_names=['Normal', 'Fraud'],\n",
+        "                                   output_dict=True)\n",
+        "\n",
+        "print(f\"=== Final Test Report (Threshold: {best_threshold}) ===\")\n",
+        "print(classification_report(y_test, y_pred_test,\n",
+        "      target_names=['Normal', 'Fraud']))\n",
+        "\n"
+      ],
+      "metadata": {
+        "id": "hXemMfk27dXa"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "fraud_stats = report_dict['Fraud']\n",
+        "metrics = ['Precision', 'Recall', 'F1-Score']\n",
+        "scores = [fraud_stats['precision'], fraud_stats['recall'], fraud_stats['f1-score']]\n",
+        "\n",
+        "plt.figure(figsize=(9, 5))\n",
+        "sns.set_style(\"white\")\n",
+        "\n",
+        "colors = ['#1f77b4', '#ff7f0e', '#2ca02c']\n",
+        "bars = plt.bar(metrics, scores, color=colors, alpha=0.8, edgecolor='black')\n",
+        "\n",
+        "\n",
+        "for bar in bars:\n",
+        "    yval = bar.get_height()\n",
+        "    plt.text(bar.get_x() + bar.get_width()/2, yval + 0.02,\n",
+        "             f'{yval:.2f}', ha='center', va='bottom', fontweight='bold', fontsize=12)\n",
+        "\n",
+        "plt.ylim(0, 1.1)\n",
+        "plt.title(f'Fraud Detection Performance (Threshold: {best_threshold})', fontsize=14, pad=20)\n",
+        "plt.ylabel('Score (0.0 - 1.0)', fontsize=12)\n",
+        "sns.despine()\n",
+        "plt.show()"
+      ],
+      "metadata": {
+        "id": "zX1KEPo7ypme"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "df_test = X_test.copy()\n",
+        "df_test['ActualFraud']      = y_test.values\n",
+        "df_test['FraudProbability'] = y_prob_test\n",
+        "df_test['PredictedFraud']   = y_pred_test\n",
+        "\n",
+        "df_test.head()"
+      ],
+      "metadata": {
+        "id": "MsekeoZlIokr"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "plt.figure(figsize=(9, 5))\n",
+        "\n",
+        "plt.hist(df_test[df_test['ActualFraud']==0]['FraudProbability'],\n",
+        "         bins=30, alpha=0.6, color='#22c55e', label='Actual Normal')\n",
+        "plt.hist(df_test[df_test['ActualFraud']==1]['FraudProbability'],\n",
+        "         bins=30, alpha=0.6, color='#ef4444', label='Actual Fraud')\n",
+        "\n",
+        "plt.axvline(x=0.3, color='black', linestyle='--',\n",
+        "            linewidth=1.8, label='Threshold = 0.3')\n",
+        "\n",
+        "plt.title('Fraud Probability Distribution\\nDoes the model separate fraud from normal?',\n",
+        "          fontsize=13, fontweight='bold')\n",
+        "plt.xlabel('Fraud Probability Score (0 = safe, 1 = fraud)', fontsize=11)\n",
+        "plt.ylabel('Number of Transactions', fontsize=11)\n",
+        "plt.legend(fontsize=10)\n",
+        "plt.grid(axis='y', linestyle='--', alpha=0.4)\n",
+        "plt.tight_layout()\n",
+        "plt.show()"
+      ],
+      "metadata": {
+        "id": "7NUhB5ts7tX6"
+      },
+      "execution_count": null,
+      "outputs": []
+    }
+  ]
+}
